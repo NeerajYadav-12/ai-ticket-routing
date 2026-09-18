@@ -15,7 +15,8 @@ if DB_HOST:
     engine_kwargs = {"pool_pre_ping": True, "pool_recycle": 1800}
 else:
     # Zero-config fallback (free hosts like Render/Koyeb): SQLite
-    DATABASE_URL = os.getenv("DB_URL", "sqlite:////workspace/data/app.db")
+    default_sqlite = str(Path(__file__).resolve().parent.parent / "data" / "app.db")
+    DATABASE_URL = os.getenv("DB_URL", f"sqlite:///{default_sqlite}")
     if DATABASE_URL.startswith("sqlite:///"):
         Path(DATABASE_URL.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
     engine_kwargs = {"connect_args": {"check_same_thread": False}}
