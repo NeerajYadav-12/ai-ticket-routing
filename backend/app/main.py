@@ -20,7 +20,10 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="AI Ticket Routing API", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+import os as _os
+_origins = [o.strip() for o in _os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
 app.include_router(analytics_router)
 
 
