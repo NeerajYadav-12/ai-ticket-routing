@@ -16,7 +16,18 @@ from .analytics import router as analytics_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    import logging
+    from sqlalchemy.exc import OperationalError
+    log = logging.getLogger("startup")
+    try:
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as e:
+        # Two gunicorn workers may create tables concurrently (SQLite) —
+        # "table already exists" is benign, the other worker won the race.
+        if "already exists" in str(e):
+            log.warning("Table creation raced with sibling worker; continuing: %s", e)
+        else:
+            raise
     yield
 
 app = FastAPI(title="AI Ticket Routing API", lifespan=lifespan)
