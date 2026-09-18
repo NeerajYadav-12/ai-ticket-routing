@@ -1,4 +1,5 @@
 import datetime
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException
@@ -28,6 +29,18 @@ async def lifespan(app: FastAPI):
             log.warning("Table creation raced with sibling worker; continuing: %s", e)
         else:
             raise
+    # Auto-seed demo data when the database is empty (disable with AUTO_SEED=false)
+    if os.getenv("AUTO_SEED", "true").lower() != "false":
+        from .db import SessionLocal
+        from .models import Ticket
+        db = SessionLocal()
+        try:
+            if db.query(Ticket).count() == 0:
+                log.info("Empty database — seeding demo data")
+                from .seed import run as seed_run
+                seed_run()
+        finally:
+            db.close()
     yield
 
 app = FastAPI(title="AI Ticket Routing API", lifespan=lifespan)
