@@ -20,17 +20,24 @@ The app has two parts:
 
 > If `VITE_API_URL` is omitted, the frontend calls `/api` on its own origin (same-origin mode — use this when backend and frontend share a domain).
 
-## B. Backend → Railway (or Render/Fly)
+## B. Backend → Render free tier (recommended $0 path)
 
-The backend needs a persistent Python process + MySQL — it cannot run on Vercel serverless.
+Render's free tier runs Python web services with zero cost, but has no MySQL — this app falls back to **SQLite automatically when `DB_HOST` is unset**, so no database service is needed.
 
-1. In [Railway](https://railway.app): **New Project → Deploy from GitHub repo**.
-2. Set:
+1. In [render.com](https://render.com): **New → Web Service** → connect the repo.
+2. Configure:
    - **Root Directory:** `backend`
-   - **Start command:** `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000`
-   - Env vars: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (use Railway's MySQL plugin values), `CLASSIFIER_PROVIDER=local` (or `openai` + `OPENAI_API_KEY`/`OPENAI_BASE_URL`), `ALLOWED_ORIGINS=https://<project>.vercel.app`
-3. Tables are created automatically on startup (`Base.metadata.create_all`). Optionally seed demo data: run `python -m app.seed` once.
-4. Generate a public domain in Railway → use it as `VITE_API_URL` in Vercel.
+   - **Runtime:** Python 3
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT --workers 2 --timeout 120`
+   - Env vars (all optional): `CLASSIFIER_PROVIDER=openai` + `OPENAI_API_KEY`/`OPENAI_BASE_URL` (defaults to rule-based), `ALLOWED_ORIGINS=https://<project>.vercel.app`
+3. Create the service → Render gives you `https://<app>.onrender.com`. Run `python -m app.seed` once from the Render shell if you want the 60-ticket demo data (tables are created automatically on first start).
+4. Use that URL as `VITE_API_URL` in Vercel.
+
+> ⚠️ **Free-tier caveats:** the service sleeps after 15 min idle (first request takes ~30–60 s to wake), and the SQLite file is **ephemeral** — data resets on redeploy. Add a Render disk or upgrade to paid for persistence.
+
+### Alternative: Railway / Render paid / Fly.io (MySQL)
+Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` from your managed MySQL and the app uses it automatically.
 
 **Deploy order matters:** backend first (get its URL), then frontend pointing at it.
 

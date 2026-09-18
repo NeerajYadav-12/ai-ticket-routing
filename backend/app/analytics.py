@@ -10,6 +10,14 @@ from .routing.engine import agent_open_tickets
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+def _avg_resolution_hours(db, agent_id=None):
+    """Dialect-agnostic avg resolution time in hours."""
+    q = db.query(Ticket.created_at, Ticket.resolved_at).filter(Ticket.resolved_at != None)  # noqa: E711
+    if agent_id:
+        q = q.filter(Ticket.assigned_agent_id == agent_id)
+    hours = [(r.resolved_at - r.created_at).total_seconds() / 3600 for r in q.all()]
+    return round(sum(hours) / len(hours), 1) if hours else None
+
 @router.get("/summary")
 def summary(db: Session = Depends(get_db)):
     by_topic = dict(db.query(Ticket.topic, func.count()).group_by(Ticket.topic).all())
@@ -19,9 +27,7 @@ def summary(db: Session = Depends(get_db)):
     resolved = db.query(Ticket).filter(Ticket.status == "resolved").count()
     open_ = db.query(Ticket).filter(Ticket.status != "resolved").count()
 
-    avg_res = db.query(
-        func.avg(func.timestampdiff(sa_text("HOUR"), Ticket.created_at, Ticket.resolved_at))
-    ).filter(Ticket.resolved_at != None).scalar()  # noqa: E711
+    avg_res = _avg_resolution_hours(db)
 
     return {
         "total": total,
@@ -39,10 +45,7 @@ def agents(db: Session = Depends(get_db)):
     from .models import Agent
     out = []
     for a in db.query(Agent).all():
-        avg_res = (
-            db.query(func.avg(func.timestampdiff(sa_text("HOUR"), Ticket.created_at, Ticket.resolved_at)))
-            .filter(Ticket.assigned_agent_id == a.id, Ticket.resolved_at != None).scalar()  # noqa: E711
-        )
+        avg_res = _avg_resolution_hours(db, agent_id=a.id)
         out.append({
             "id": a.id, "name": a.name, "team": a.team.name if a.team else None,
             "expertise": a.expertise or [], "capacity": a.capacity,
